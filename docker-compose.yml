@@ -1,0 +1,108 @@
+name: open-web-analytics-local
+
+services:
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${OWA_DB_NAME}
+      MARIADB_USER: ${OWA_DB_USER}
+      MARIADB_PASSWORD: ${OWA_DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${OWA_DB_ROOT_PASSWORD}
+      TZ: ${OWA_TIMEZONE}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  owa:
+    build:
+      context: .
+      args:
+        OWA_VERSION: ${OWA_VERSION}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      OWA_DB_HOST: db
+      OWA_DB_NAME: ${OWA_DB_NAME}
+      OWA_DB_USER: ${OWA_DB_USER}
+      OWA_DB_PASSWORD: ${OWA_DB_PASSWORD}
+      OWA_ADMIN_USER: ${OWA_ADMIN_USER}
+      OWA_ADMIN_EMAIL: ${OWA_ADMIN_EMAIL}
+      OWA_TRACKED_DOMAIN: ${OWA_TRACKED_DOMAIN}
+      OWA_PUBLIC_URL: ${OWA_PUBLIC_URL}
+      OWA_TIMEZONE: ${OWA_TIMEZONE}
+    ports:
+      - "${OWA_PORT}:80"
+    volumes:
+      - ./owa-config.php:/var/www/html/owa-config.php:ro
+      - owa-data:/var/www/html/owa-data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost/index.php"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  scheduler:
+    build:
+      context: .
+      args:
+        OWA_VERSION: ${OWA_VERSION}
+    restart: unless-stopped
+    depends_on:
+      owa:
+        condition: service_healthy
+    environment:
+      OWA_DB_HOST: db
+      OWA_DB_NAME: ${OWA_DB_NAME}
+      OWA_DB_USER: ${OWA_DB_USER}
+      OWA_DB_PASSWORD: ${OWA_DB_PASSWORD}
+      OWA_PUBLIC_URL: ${OWA_PUBLIC_URL}
+      OWA_TIMEZONE: ${OWA_TIMEZONE}
+      OWA_SKIP_INSTALL: "1"
+    command: ["sh", "-c", "while true; do php cli.php cmd=schedule-run; sleep 60; done"]
+    volumes:
+      - ./owa-config.php:/var/www/html/owa-config.php:ro
+      - owa-data:/var/www/html/owa-data
+
+  demo-init:
+    image: mariadb:11.4
+    depends_on:
+      owa:
+        condition: service_healthy
+    environment:
+      MYSQL_PWD: ${OWA_DB_PASSWORD}
+    command:
+      - sh
+      - -c
+      - |
+        until site_id="$$(mariadb -h db -u "${OWA_DB_USER}" -Nse "SELECT site_id FROM ${OWA_DB_NAME}.owa_site LIMIT 1" 2>/dev/null)" && [ -n "$$site_id" ]; do
+          sleep 2
+        done
+        sed "s|__OWA_SITE_ID__|$$site_id|g" /template/index.html > /site/index.html
+    volumes:
+      - ./demo/index.template.html:/template/index.html:ro
+      - demo-site:/site
+
+  demo:
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    depends_on:
+      demo-init:
+        condition: service_completed_successfully
+    ports:
+      - "${DEMO_PORT}:80"
+    volumes:
+      - demo-site:/usr/share/nginx/html:ro
+
+volumes:
+  db-data:
+  owa-data:
+  demo-site:
+
