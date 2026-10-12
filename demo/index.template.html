@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Тестовый сайт для OWA</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0f172a; color: #e2e8f0; }
+    main { width: min(720px, calc(100% - 48px)); padding: 40px; border: 1px solid #334155; border-radius: 24px; background: #111c33; box-shadow: 0 24px 80px #02061799; }
+    h1 { margin-top: 0; font-size: clamp(2rem, 7vw, 4rem); line-height: 1; }
+    p { color: #94a3b8; font-size: 1.1rem; line-height: 1.6; }
+    button, a { display: inline-block; margin: 8px 8px 0 0; padding: 12px 18px; border: 0; border-radius: 999px; background: #38bdf8; color: #082f49; font-weight: 700; text-decoration: none; cursor: pointer; }
+    button.secondary { background: #a78bfa; color: #2e1065; }
+    code { color: #7dd3fc; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>OWA работает</h1>
+    <p>Эта страница отправляет просмотры и клики в локальный Open Web Analytics. Нажмите кнопки несколько раз, затем откройте панель аналитики.</p>
+    <button id="lead">Тестовая заявка</button>
+    <button id="pricing" class="secondary">Посмотреть тариф</button>
+    <a href="http://localhost:8080/" target="_blank" rel="noreferrer">Открыть OWA</a>
+    <p>Идентификатор профиля: <code>__OWA_SITE_ID__</code></p>
+  </main>
+
+  <script>
+    var owa_baseUrl = 'http://localhost:8080/';
+    var owa_cmds = window.owa_cmds = window.owa_cmds || [];
+    owa_cmds.push(['setSiteId', '__OWA_SITE_ID__']);
+    owa_cmds.push(['trackPageView']);
+    owa_cmds.push(['trackClicks']);
+    (function () {
+      var tracker = document.createElement('script');
+      tracker.async = true;
+      tracker.src = owa_baseUrl + 'public/base/dist/owa.tracker.js';
+      document.head.appendChild(tracker);
+    }());
+
+    document.getElementById('lead').addEventListener('click', function () {
+      owa_cmds.push(['trackAction', 'Конверсия', 'Тестовая заявка', 'local-demo', 1]);
+    });
+    document.getElementById('pricing').addEventListener('click', function () {
+      owa_cmds.push(['trackAction', 'Интерес', 'Просмотр тарифа', 'local-demo', 1]);
+    });
+  </script>
+</body>
+</html>
+
